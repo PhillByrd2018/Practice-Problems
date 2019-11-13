@@ -3,8 +3,10 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"strings"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -27,7 +29,12 @@ func RunThrough() {
 	ListobjectsInBucket(svc, "example-bucket-for-test")
 	// fmt.Println("Calling list buckets again")
 	// ListBuckets(svc)
-	sendEmail()
+	GetSingleObject(svc, "example-bucket-for-test", "Solomon")
+	bcTest, err := ioutil.ReadFile("services/test.txt") // just pass the file name
+	if err != nil {
+		fmt.Print(err)
+	}
+	sendEmail(string(bcTest))
 }
 
 //ListBuckets services used to list buckets in AWS account
@@ -52,6 +59,59 @@ func ListBuckets(svc *s3.S3) {
 
 		}
 	}
+
+}
+
+//GetSingleObject is a service that will retrive a single guest from the bucket
+func GetSingleObject(svc *s3.S3, bucketName string, keyName string) {
+
+	sess, err := session.NewSession(&aws.Config{
+		Region: aws.String("us-west-1")},
+	)
+
+	svc = s3.New(sess)
+
+	fmt.Println("Getting single Object: ", keyName)
+	fmt.Println("from bucket: ", bucketName)
+
+	input := &s3.GetObjectInput{
+		Bucket: aws.String(bucketName),
+		Key:    aws.String(keyName),
+	}
+
+	result, err := svc.GetObject(input)
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			switch aerr.Code() {
+			case s3.ErrCodeNoSuchKey:
+				fmt.Println(s3.ErrCodeNoSuchKey, aerr.Error())
+			default:
+				fmt.Println(aerr.Error())
+			}
+		} else {
+			// Print the error, cast err to awserr.Error to get the Code and
+			// Message from an error.
+			fmt.Println(err.Error())
+		}
+		return
+	}
+
+	var responseBody Guest
+
+	body, err := ioutil.ReadAll(result.Body)
+	if err != nil {
+		fmt.Println("Error - Failed to read the response body. ", err)
+		return
+	}
+	if err = json.Unmarshal(body, &responseBody); err == nil {
+		fmt.Println(responseBody)
+		fmt.Println(responseBody.Name)
+	} else {
+		fmt.Println("Error - Failed to read the response body. ", err)
+		return
+	}
+
+	fmt.Println(result)
 
 }
 
